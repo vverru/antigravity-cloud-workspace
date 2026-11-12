@@ -1,0 +1,63 @@
+name: Cloud Video Renderer
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: 'Project folder name to render'
+        required: false
+        default: 'current'
+  push:
+    paths:
+      - 'projects/**'
+      - 'studio.py'
+      - 'core/**'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Dependencies (FFmpeg & Fonts)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-liberation imagemagick
+
+      - name: Install Python Dependencies
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install numpy pillow opencv-python-headless scipy
+          fi
+
+      - name: Execute Render Pipeline
+        run: |
+          echo "🚀 Starting Cloud Video Render on GitHub Actions..."
+          if [ -f studio.py ]; then
+            python studio.py render || python -m core.render || true
+          elif [ -f render.py ]; then
+            python render.py
+          else
+            echo "No render script detected. Checking project directories..."
+          fi
+
+      - name: Upload Rendered Video
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rendered-video
+          path: |
+            **/master.mp4
+            **/*.mp4
+          if-no-files-found: warn
